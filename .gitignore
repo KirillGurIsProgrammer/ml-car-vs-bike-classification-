@@ -14,9 +14,8 @@ artifacts/
 
 .ipynb_checkpoints/
 
-# Keep folder structure, ignore actual dataset files
-data/**
-!data/
-!data/**/
-!data/**/.gitkeep
+# Ignore only raw source dataset, keep processed splits trackable
+data/raw/**
+!data/raw/
+!data/raw/**/.gitkeep
 
