@@ -2,7 +2,7 @@
 
 ## Что проверено
 
-- Корректность кода в `src/dataset.py`, `src/train.py`, `src/predict.py`, `src/split_raw_dataset.py`
+- Корректность кода в `src/dataset.py`, `src/train.py`, `src/predict.py`,  `src/split_raw_dataset.py`
 - Полный цикл обучения (5 эпох)
 - Сохранение лучшей модели в `artifacts/best_model.pt`
 - Предсказание на тестовом изображении через консоль
