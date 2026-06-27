@@ -1,10 +1,25 @@
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader, random_split
+from pathlib import Path
+
+from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 
-def get_transforms() -> transforms.Compose:
+def get_train_transform() -> transforms.Compose:
+	return transforms.Compose(
+		[
+			transforms.Resize((224, 224)),
+			transforms.RandomHorizontalFlip(p=0.5),
+			transforms.RandomRotation(degrees=15),
+			transforms.ToTensor(),
+			transforms.Normalize(
+				mean=[0.485, 0.456, 0.406],
+				std=[0.229, 0.224, 0.225],
+			),
+		]
+	)
+
+
+def get_eval_transforms() -> transforms.Compose:
 	return transforms.Compose(
 		[
 			transforms.Resize((224, 224)),
@@ -17,69 +32,56 @@ def get_transforms() -> transforms.Compose:
 	)
 
 
-def create_datasets(data_dir: str = "./data", seed: int = 42):
-	full_dataset = datasets.ImageFolder(root=data_dir, transform=get_transforms())
+def create_datasets(data_dir: str = "./data"):
+	data_path = Path(data_dir)
+	train_dir = data_path / "train"
+	val_dir = data_path / "val"
+	test_dir = data_path / "test"
 
-	total_size = len(full_dataset)
-	train_size = int(0.7 * total_size)
-	val_size = int(0.15 * total_size)
-	test_size = total_size - train_size - val_size
+	if not (train_dir.exists() and val_dir.exists() and test_dir.exists()):
+		raise FileNotFoundError("Expected data/train, data/val and data/test folders.")
 
-	generator = torch.Generator().manual_seed(seed)
-	train_dataset, val_dataset, test_dataset = random_split(
-		full_dataset,
-		lengths=[train_size, val_size, test_size],
-		generator=generator,
-	)
+	train_dataset = datasets.ImageFolder(root=str(train_dir), transform=get_train_transform())
+	val_dataset = datasets.ImageFolder(root=str(val_dir), transform=get_eval_transforms())
+	test_dataset = datasets.ImageFolder(root=str(test_dir), transform=get_eval_transforms())
 
 	return train_dataset, val_dataset, test_dataset
 
 
-def create_dataloaders(data_dir: str = "./data", batch_size: int = 32, seed: int = 42):
-	train_dataset, val_dataset, test_dataset = create_datasets(data_dir=data_dir, seed=seed)
+def create_dataloaders(
+	data_dir: str = "./data",
+	batch_size: int = 32,
+	num_workers: int = 0,
+):
+	train_dataset, val_dataset, test_dataset = create_datasets(data_dir=data_dir)
 
-	train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-	val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-	test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+	train_loader = DataLoader(
+		train_dataset,
+		batch_size=batch_size,
+		shuffle=True,
+		num_workers=num_workers,
+	)
+	val_loader = DataLoader(
+		val_dataset,
+		batch_size=batch_size,
+		shuffle=False,
+		num_workers=num_workers,
+	)
+	test_loader = DataLoader(
+		test_dataset,
+		batch_size=batch_size,
+		shuffle=False,
+		num_workers=num_workers,
+	)
 
 	return train_loader, val_loader, test_loader
 
 
-class DummyCNN(nn.Module):
-	def __init__(self, num_classes: int = 2):
-		super().__init__()
-		self.features = nn.Sequential(
-			nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, padding=1),
-			nn.ReLU(inplace=True),
-			nn.MaxPool2d(kernel_size=2),
-			nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1),
-			nn.ReLU(inplace=True),
-			nn.MaxPool2d(kernel_size=2),
-		)
-		self.classifier = nn.Sequential(
-			nn.Flatten(),
-			nn.Linear(32 * 56 * 56, 128),
-			nn.ReLU(inplace=True),
-			nn.Linear(128, num_classes),
-		)
+def get_class_names(data_dir: str = "./data") -> list[str]:
+	data_path = Path(data_dir)
+	train_dir = data_path / "train"
+	if not train_dir.exists():
+		raise FileNotFoundError("Expected data/train folder.")
 
-	def forward(self, x: torch.Tensor) -> torch.Tensor:
-		x = self.features(x)
-		x = self.classifier(x)
-		return x
-
-
-if __name__ == "__main__":
-	train_loader, val_loader, test_loader = create_dataloaders(
-		data_dir="./data",
-		batch_size=32,
-		seed=42,
-	)
-
-	model = DummyCNN(num_classes=2)
-
-	images, labels = next(iter(train_loader))
-	outputs = model(images)
-
-	print(f"Input batch shape: {images.shape}")
-	print(f"Output batch shape: {outputs.shape}")
+	dataset = datasets.ImageFolder(root=str(train_dir), transform=None)
+	return dataset.classes
